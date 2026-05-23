@@ -2,14 +2,18 @@ package com.canteen.user.controller;
 
 import com.canteen.common.result.Result;
 import com.canteen.user.dto.*;
+import com.canteen.user.mapper.RefreshTokenMapper;
+import com.canteen.user.mapper.UserMapper;
 import com.canteen.user.service.AuthService;
 import com.canteen.user.service.UserProfileService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -32,6 +36,19 @@ class UserControllersTest {
 
     @MockBean
     private UserProfileService userProfileService;
+
+    // Prevent MyBatis @MapperScan, RedissonConfig, RedisConfig from failing context load
+    @MockBean
+    private RefreshTokenMapper refreshTokenMapper;
+
+    @MockBean
+    private UserMapper userMapper;
+
+    @MockBean
+    private RedissonClient redissonClient;
+
+    @MockBean
+    private RedisConnectionFactory redisConnectionFactory;
 
     @Test
     @DisplayName("POST /auth/register - 注册")

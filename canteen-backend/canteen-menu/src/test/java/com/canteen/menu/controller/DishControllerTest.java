@@ -3,13 +3,19 @@ package com.canteen.menu.controller;
 import com.canteen.common.result.Result;
 import com.canteen.menu.dto.DishCreateRequest;
 import com.canteen.menu.dto.DishVO;
+import com.canteen.menu.mapper.DailyMenuItemMapper;
+import com.canteen.menu.mapper.DailyMenuMapper;
+import com.canteen.menu.mapper.DishMapper;
+import com.canteen.menu.mapper.MerchantMapper;
 import com.canteen.menu.service.DishService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -29,6 +35,25 @@ class DishControllerTest {
 
     @MockBean
     private DishService dishService;
+
+    // Prevent MyBatis @MapperScan, RedissonConfig, RedisConfig from failing context load
+    @MockBean
+    private DishMapper dishMapper;
+
+    @MockBean
+    private DailyMenuMapper dailyMenuMapper;
+
+    @MockBean
+    private DailyMenuItemMapper dailyMenuItemMapper;
+
+    @MockBean
+    private MerchantMapper merchantMapper;
+
+    @MockBean
+    private RedissonClient redissonClient;
+
+    @MockBean
+    private RedisConnectionFactory redisConnectionFactory;
 
     @Test
     @DisplayName("POST /dishes - 新增菜品")

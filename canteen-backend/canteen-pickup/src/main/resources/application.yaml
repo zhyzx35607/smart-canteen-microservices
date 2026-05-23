@@ -6,15 +6,16 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:16379}
-      password: ${REDIS_PASSWORD:}
+# 本地 Docker Redis 无密码，不要设置 password 字段（Redisson 会把空串当作 AUTH 发送导致报错）。
+# 生产环境需要密码时取消下面注释：password: ${REDIS_PASSWORD:your_password}
   cloud:
     stream:
       bindings:
         queueCalled-out-0:
-          destination: queue.called
+          destination: queue-called
           content-type: application/json
         queueCalled-in-0:
-          destination: queue.called
+          destination: queue-called
           content-type: application/json
           group: pickup-service
       rocketmq:

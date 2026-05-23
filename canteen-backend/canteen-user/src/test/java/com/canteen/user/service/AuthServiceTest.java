@@ -70,9 +70,9 @@ class AuthServiceTest {
         when(userMapper.selectCount(any(LambdaQueryWrapper.class))).thenReturn(0L);
         when(userMapper.insert(any(User.class))).thenReturn(1);
 
-        // Mock JWT
-        when(jwtTokenProvider.generateAccessToken(anyLong(), anyString())).thenReturn("access-token");
-        when(jwtTokenProvider.generateRefreshToken(anyLong())).thenReturn("refresh-token");
+        // Mock JWT — use any() because userId may be null after mocked insert
+        when(jwtTokenProvider.generateAccessToken(any(), anyString())).thenReturn("access-token");
+        when(jwtTokenProvider.generateRefreshToken(any())).thenReturn("refresh-token");
         when(jwtTokenProvider.parseToken(anyString())).thenReturn(mock(io.jsonwebtoken.Claims.class));
         when(jwtTokenProvider.getRefreshTokenExpiration()).thenReturn(604800000L);
         when(jwtTokenProvider.getAccessTokenExpiration()).thenReturn(900000L);
@@ -98,21 +98,28 @@ class AuthServiceTest {
     @Test
     @DisplayName("登录成功: 密码方式")
     void testLoginWithPassword() {
+        // Generate a real BCrypt hash for "password123"
+        String realHash = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(10)
+                .encode("password123");
+
         User user = new User();
         user.setId(1L);
         user.setPhone("13800138000");
-        user.setPasswordHash("$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy"); // "password123" BCrypt
+        user.setPasswordHash(realHash);
         user.setStatus(1);
 
         when(userMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(user);
-        when(jwtTokenProvider.generateAccessToken(anyLong(), anyString())).thenReturn("access-token");
-        when(jwtTokenProvider.generateRefreshToken(anyLong())).thenReturn("refresh-token");
+        when(jwtTokenProvider.generateAccessToken(any(), anyString())).thenReturn("access-token");
+        when(jwtTokenProvider.generateRefreshToken(any())).thenReturn("refresh-token");
         when(jwtTokenProvider.parseToken(anyString())).thenReturn(mock(io.jsonwebtoken.Claims.class));
         when(jwtTokenProvider.getRefreshTokenExpiration()).thenReturn(604800000L);
         when(jwtTokenProvider.getAccessTokenExpiration()).thenReturn(900000L);
 
-        // Note: 由于 BCrypt 匹配需要真实加密，此测试验证的是流程
-        // 实际密码校验由 BCryptPasswordEncoder.matches 处理
+        TokenResponse response = authService.login(loginRequest);
+
+        assertNotNull(response);
+        assertEquals("access-token", response.getAccessToken());
+        assertEquals("refresh-token", response.getRefreshToken());
     }
 
     @Test

@@ -3,14 +3,18 @@ package com.canteen.order.controller;
 import com.canteen.common.result.Result;
 import com.canteen.order.dto.OrderVO;
 import com.canteen.order.dto.PlaceOrderRequest;
+import com.canteen.order.mapper.OrderItemMapper;
+import com.canteen.order.mapper.OrderMapper;
 import com.canteen.order.service.OrderService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -32,6 +36,19 @@ class OrderControllerTest {
 
     @MockBean
     private OrderService orderService;
+
+    // Prevent MyBatis @MapperScan, RedissonConfig, RedisConfig from failing context load
+    @MockBean
+    private OrderMapper orderMapper;
+
+    @MockBean
+    private OrderItemMapper orderItemMapper;
+
+    @MockBean
+    private RedissonClient redissonClient;
+
+    @MockBean
+    private RedisConnectionFactory redisConnectionFactory;
 
     @Test
     @DisplayName("POST /orders - 下单成功")

@@ -26,19 +26,25 @@ public class RocketMQConfig {
     private static final String DELAY_LEVEL_30MIN = "16";
 
     /**
-     * 发送订单超时延时消息（30分钟后消费）
+     * 发送订单超时延时消息（30分钟后消费）。
+     * 发送失败仅记录日志，不影响下单事务提交。
      */
     public void sendOrderTimeoutMessage(Long orderId) {
-        Message<String> message = MessageBuilder
-                .withPayload(String.valueOf(orderId))
-                .setHeader("DELAY", DELAY_LEVEL_30MIN)
-                .build();
+        try {
+            Message<String> message = MessageBuilder
+                    .withPayload(String.valueOf(orderId))
+                    .setHeader("DELAY", DELAY_LEVEL_30MIN)
+                    .build();
 
-        boolean sent = streamBridge.send("orderTimeout-out-0", message);
-        if (sent) {
-            log.info("Order timeout message sent: orderId={}", orderId);
-        } else {
-            log.error("Failed to send order timeout message: orderId={}", orderId);
+            boolean sent = streamBridge.send("orderTimeout-out-0", message);
+            if (sent) {
+                log.info("Order timeout message sent: orderId={}", orderId);
+            } else {
+                log.error("Failed to send order timeout message: orderId={}", orderId);
+            }
+        } catch (Exception e) {
+            log.error("Failed to send order timeout message (exception): orderId={}, error={}",
+                    orderId, e.getMessage());
         }
     }
 }

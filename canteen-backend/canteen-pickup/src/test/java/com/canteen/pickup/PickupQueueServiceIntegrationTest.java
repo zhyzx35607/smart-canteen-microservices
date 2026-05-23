@@ -32,7 +32,7 @@ import static org.mockito.Mockito.doNothing;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class PickupQueueServiceIntegrationTest {
 
     @Container
@@ -47,7 +47,8 @@ class PickupQueueServiceIntegrationTest {
                 () -> "com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,"
                         + "com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientAutoConfiguration,"
                         + "com.alibaba.cloud.sentinel.SentinelWebAutoConfiguration,"
-                        + "org.springframework.cloud.stream.function.StreamFunctionAutoConfiguration");
+                        + "org.springframework.cloud.stream.function.StreamFunctionAutoConfiguration,"
+                        + "org.redisson.spring.starter.RedissonAutoConfigurationV2");
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("spring.cloud.nacos.config.enabled", () -> "false");
         registry.add("spring.cloud.sentinel.enabled", () -> "false");
