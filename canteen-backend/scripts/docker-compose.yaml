@@ -1,0 +1,66 @@
+services:
+  # ========== 基础设施 ==========
+  nacos:
+    image: nacos/nacos-server:v2.3.2-slim
+    container_name: canteen-nacos
+    environment:
+      MODE: standalone
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+    ports:
+      - "18848:8848"
+      - "19848:9848"
+    volumes:
+      - nacos-data:/home/nacos/data
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    container_name: canteen-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "13306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: canteen-redis
+    ports:
+      - "16379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+  rocketmq-namesrv:
+    image: apache/rocketmq:5.1.4
+    container_name: canteen-rocketmq-namesrv
+    ports:
+      - "19876:9876"
+    command: sh mqnamesrv
+    restart: unless-stopped
+
+  rocketmq-broker:
+    image: apache/rocketmq:5.1.4
+    container_name: canteen-rocketmq-broker
+    ports:
+      - "20911:10911"
+    environment:
+      NAMESRV_ADDR: rocketmq-namesrv:9876
+    volumes:
+      - ./broker.conf:/home/rocketmq/rocketmq-5.1.4/conf/broker.conf
+    command: sh mqbroker -n rocketmq-namesrv:9876 -c /home/rocketmq/rocketmq-5.1.4/conf/broker.conf
+    depends_on:
+      - rocketmq-namesrv
+    restart: unless-stopped
+
+volumes:
+  nacos-data:
+  mysql-data:
+  redis-data:

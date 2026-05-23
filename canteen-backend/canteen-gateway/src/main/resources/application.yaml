@@ -1,0 +1,56 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: user
+          uri: lb://user-service
+          predicates:
+            - Path=/api/user/**
+          filters:
+            - StripPrefix=2
+        - id: menu
+          uri: lb://menu-service
+          predicates:
+            - Path=/api/menu/**
+          filters:
+            - StripPrefix=2
+        - id: order
+          uri: lb://order-service
+          predicates:
+            - Path=/api/order/**
+          filters:
+            - StripPrefix=2
+        - id: pickup
+          uri: lb://pickup-service
+          predicates:
+            - Path=/api/pickup/**
+          filters:
+            - StripPrefix=2
+        - id: pickup-ws
+          uri: lb:ws://pickup-service
+          predicates:
+            - Path=/ws/screen/**
+
+jwt:
+  secret: ${JWT_SECRET:dev-only-jwt-secret-please-override-in-nacos-or-env-256bits}
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
+
+# Whitelist paths that skip JWT validation
+gateway:
+  auth:
+    whitelist:
+      - /api/user/auth/**
+      - /ws/screen/**
+      - /actuator/**
+
+logging:
+  pattern:
+    console: "%d{ISO8601} %-5level [%X{traceId}] %logger - %msg%n"

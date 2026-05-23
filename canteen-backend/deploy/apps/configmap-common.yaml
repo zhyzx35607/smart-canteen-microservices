@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: common-config
+  namespace: canteen
+data:
+  nacos.addr: "nacos.canteen-infra:8848"
+  mysql.host: "mysql.canteen-infra"
+  mysql.port: "3306"
+  mysql.user: "root"
+  redis.host: "redis.canteen-infra"
+  redis.port: "6379"
+  rocketmq.namesrv: "rocketmq-namesrv.canteen-infra:9876"

@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pickup-service
+  namespace: canteen
+  labels:
+    app: pickup-service
+    tier: business
+    version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pickup-service
+  template:
+    metadata:
+      labels:
+        app: pickup-service
+        tier: business
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8084"
+    spec:
+      containers:
+        - name: app
+          image: registry.local/canteen/pickup-service:1.0.0
+          ports:
+            - containerPort: 8084
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: NACOS_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: common-config
+                  key: nacos.addr
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: common-config
+                  key: redis.host
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: common-config
+                  key: redis.port
+            - name: ROCKETMQ_NAMESRV
+              valueFrom:
+                configMapKeyRef:
+                  name: common-config
+                  key: rocketmq.namesrv
+            - name: INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: internal-token
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8084
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8084
+            initialDelaySeconds: 40
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pickup-service
+  namespace: canteen
+spec:
+  selector:
+    app: pickup-service
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  ports:
+    - name: http
+      port: 8084
+      targetPort: 8084

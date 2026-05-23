@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: canteen
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: canteen-infra

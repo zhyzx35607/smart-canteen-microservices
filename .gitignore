@@ -1,0 +1,46 @@
+# --- Maven / Java ---
+target/
+*.jar
+*.war
+*.ear
+*.class
+hs_err_pid*
+replay_pid*
+
+# --- IDE ---
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.fleet/
+nbproject/
+*.swp
+
+# --- Spring Boot dev ---
+*.log
+logs/
+spring-shell.log
+
+# --- macOS / Windows ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Docker / K8s 本地缓存 ---
+volumes/
+.data/
+
+# --- 个人本地配置 / 临时文件 ---
+.env
+.env.local
+*.local.yaml
+docx_content.txt
+*.docx
+~$*
+*.bak
+*.tmp
+
+# --- Claude / 工作区临时 ---
+.claude/
+CLAUDE.md

@@ -1,0 +1,35 @@
+server:
+  port: 8084
+
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:16379}
+      password: ${REDIS_PASSWORD:}
+  cloud:
+    stream:
+      bindings:
+        queueCalled-out-0:
+          destination: queue.called
+          content-type: application/json
+        queueCalled-in-0:
+          destination: queue.called
+          content-type: application/json
+          group: pickup-service
+      rocketmq:
+        binder:
+          name-server: ${ROCKETMQ_NAMESRV:localhost:19876}
+
+internal:
+  token: ${INTERNAL_TOKEN:dev-only-internal-token-please-override}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+logging:
+  pattern:
+    console: "%d{ISO8601} %-5level [%X{traceId}] %logger - %msg%n"

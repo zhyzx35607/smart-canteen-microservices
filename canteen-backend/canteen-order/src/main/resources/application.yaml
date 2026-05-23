@@ -1,0 +1,58 @@
+server:
+  port: 8083
+
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:13306}/canteen_order?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:16379}
+      password: ${REDIS_PASSWORD:}
+  cloud:
+    stream:
+      bindings:
+        orderTimeout-out-0:
+          destination: order.timeout
+          content-type: application/json
+        orderTimeout-in-0:
+          destination: order.timeout
+          content-type: application/json
+          group: order-service
+      rocketmq:
+        binder:
+          name-server: ${ROCKETMQ_NAMESRV:localhost:19876}
+        bindings:
+          orderTimeout-out-0:
+            producer:
+              sync: true
+          orderTimeout-in-0:
+            consumer:
+              delay-level-when-next-consume: -1
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: deletedAt
+      logic-delete-value: NOW()
+      logic-not-delete-value: "NULL"
+
+internal:
+  token: ${INTERNAL_TOKEN:dev-only-internal-token-please-override}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+logging:
+  pattern:
+    console: "%d{ISO8601} %-5level [%X{traceId}] %logger - %msg%n"

@@ -1,0 +1,224 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: canteen-infra
+  labels:
+    app: mysql
+    tier: infra
+spec:
+  serviceName: mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+        tier: infra
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: root-password
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "localhost"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["mysqladmin", "ping", "-h", "localhost"]
+            initialDelaySeconds: 60
+            periodSeconds: 15
+      volumes:
+        - name: init-sql
+          configMap:
+            name: init-sql
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: canteen-infra
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: init-sql
+  namespace: canteen-infra
+data:
+  init.sql: |
+    CREATE DATABASE IF NOT EXISTS `canteen_user` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE DATABASE IF NOT EXISTS `canteen_menu` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE DATABASE IF NOT EXISTS `canteen_order` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+    USE `canteen_user`;
+    CREATE TABLE IF NOT EXISTS `user` (
+        `id` BIGINT NOT NULL AUTO_INCREMENT,
+        `phone` VARCHAR(20) NOT NULL,
+        `student_no` VARCHAR(50) DEFAULT NULL,
+        `password_hash` VARCHAR(255) NOT NULL,
+        `nickname` VARCHAR(100) DEFAULT '',
+        `avatar` VARCHAR(500) DEFAULT '',
+        `status` TINYINT NOT NULL DEFAULT 1,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        `deleted_at` DATETIME DEFAULT NULL,
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `uk_phone` (`phone`),
+        UNIQUE KEY `uk_student_no` (`student_no`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    CREATE TABLE IF NOT EXISTS `refresh_token` (
+        `id` BIGINT NOT NULL AUTO_INCREMENT,
+        `user_id` BIGINT NOT NULL,
+        `token_jti` VARCHAR(64) NOT NULL,
+        `expires_at` DATETIME NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `uk_jti` (`token_jti`),
+        KEY `idx_user_id` (`user_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    USE `canteen_menu`;
+    CREATE TABLE IF NOT EXISTS `merchant` (
+        `id` BIGINT NOT NULL AUTO_INCREMENT,
+        `name` VARCHAR(100) NOT NULL,
+        `counter_id` VARCHAR(50) NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        `deleted_at` DATETIME DEFAULT NULL,
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `uk_counter_id` (`counter_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    CREATE TABLE IF NOT EXISTS `dish` (
+        `id` BIGINT NOT NULL AUTO_INCREMENT,
+        `merchant_id` BIGINT NOT NULL,
+        `name` VARCHAR(100) NOT NULL,
+        `price_cents` INT NOT NULL,
+        `image_url` VARCHAR(500) DEFAULT '',
+        `on_shelf` TINYINT NOT NULL DEFAULT 1,
+        `threshold` INT NOT NULL DEFAULT 5,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        `deleted_at` DATETIME DEFAULT NULL,
+        PRIMARY KEY (`id`),
+        KEY `idx_merchant_id` (`merchant_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    CREATE TABLE IF NOT EXISTS `daily_menu` (
+        `id` BIGINT NOT NULL AUTO_INCREMENT,
+        `merchant_id` BIGINT NOT NULL,
+        `biz_date` DATE NOT NULL,
+        `sell_start` TIME NOT NULL,
+        `sell_end` TIME NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        `deleted_at` DATETIME DEFAULT NULL,
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `uk_merchant_date` (`merchant_id`, `biz_date`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    CREATE TABLE IF NOT EXISTS `daily_menu_item` (
+        `id` BIGINT NOT NULL AUTO_INCREMENT,
+        `daily_menu_id` BIGINT NOT NULL,
+        `dish_id` BIGINT NOT NULL,
+        `stock_init` INT NOT NULL DEFAULT 0,
+        `stock_left` INT NOT NULL DEFAULT 0,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `idx_daily_menu_id` (`daily_menu_id`),
+        KEY `idx_dish_id` (`dish_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    INSERT INTO `merchant` (`id`, `name`, `counter_id`) VALUES (1, '川味窗口', 'C01'), (2, '粤式窗口', 'C02'), (3, '面食窗口', 'C03');
+    INSERT INTO `dish` (`id`, `merchant_id`, `name`, `price_cents`, `on_shelf`, `threshold`) VALUES
+    (1, 1, '麻婆豆腐', 1200, 1, 5), (2, 1, '回锅肉', 1800, 1, 5), (3, 1, '水煮鱼', 2500, 1, 3),
+    (4, 2, '白切鸡', 2200, 1, 5), (5, 2, '煲仔饭', 1500, 1, 5),
+    (6, 3, '牛肉面', 1600, 1, 5), (7, 3, '炸酱面', 1200, 1, 5);
+
+    USE `canteen_order`;
+    CREATE TABLE IF NOT EXISTS `orders` (
+        `id` BIGINT NOT NULL AUTO_INCREMENT,
+        `user_id` BIGINT NOT NULL,
+        `merchant_id` BIGINT NOT NULL,
+        `counter_id` VARCHAR(50) NOT NULL,
+        `status` VARCHAR(30) NOT NULL DEFAULT 'PLACED',
+        `total_cents` INT NOT NULL,
+        `pickup_code` VARCHAR(20) DEFAULT NULL,
+        `placed_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `accepted_at` DATETIME DEFAULT NULL,
+        `ready_at` DATETIME DEFAULT NULL,
+        `picked_at` DATETIME DEFAULT NULL,
+        `canceled_at` DATETIME DEFAULT NULL,
+        `cancel_reason` VARCHAR(200) DEFAULT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        `deleted_at` DATETIME DEFAULT NULL,
+        PRIMARY KEY (`id`),
+        KEY `idx_user_id` (`user_id`),
+        KEY `idx_status` (`status`),
+        KEY `idx_pickup_code` (`pickup_code`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    CREATE TABLE IF NOT EXISTS `order_item` (
+        `id` BIGINT NOT NULL AUTO_INCREMENT,
+        `order_id` BIGINT NOT NULL,
+        `dish_id` BIGINT NOT NULL,
+        `dish_name_snapshot` VARCHAR(100) NOT NULL,
+        `unit_price` INT NOT NULL,
+        `quantity` INT NOT NULL,
+        `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `idx_order_id` (`order_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+    USE `canteen_user`;
+    INSERT INTO `user` (`id`, `phone`, `student_no`, `password_hash`, `nickname`, `status`) VALUES
+    (1, '13800000001', '2024001', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '测试用户', 1);
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+  namespace: canteen-infra
+type: Opaque
+stringData:
+  root-password: "root123"
