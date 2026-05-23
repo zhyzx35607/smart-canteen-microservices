@@ -17,6 +17,12 @@
         <dependency>
             <groupId>com.canteen</groupId>
             <artifactId>canteen-common</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-web</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <!-- Spring Cloud Gateway (reactive, NOT spring-boot-starter-web) -->
