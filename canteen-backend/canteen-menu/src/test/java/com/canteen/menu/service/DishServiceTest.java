@@ -106,4 +106,38 @@ class DishServiceTest {
                 () -> dishService.getDish(999L));
         assertEquals(ResultCode.MENU_DISH_NOT_FOUND.getCode(), ex.getCode());
     }
+
+    @Test
+    @DisplayName("列表查询: 按 onShelf=1 过滤仅上架菜品")
+    void testListDishesFilterByOnShelf() {
+        @SuppressWarnings("unchecked")
+        Page<Dish> emptyPage = mock(Page.class);
+        when(dishMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class)))
+                .thenReturn(emptyPage);
+        when(emptyPage.getRecords()).thenReturn(java.util.List.of());
+        when(emptyPage.getCurrent()).thenReturn(1L);
+        when(emptyPage.getSize()).thenReturn(20L);
+        when(emptyPage.getTotal()).thenReturn(0L);
+
+        Page<DishVO> result = dishService.listDishes(null, 1, 1, 20);
+        assertNotNull(result);
+        verify(dishMapper).selectPage(any(Page.class), any(LambdaQueryWrapper.class));
+    }
+
+    @Test
+    @DisplayName("列表查询: 不传 onShelf 时不过滤（管理员视图）")
+    void testListDishesNoOnShelfFilter() {
+        @SuppressWarnings("unchecked")
+        Page<Dish> emptyPage = mock(Page.class);
+        when(dishMapper.selectPage(any(Page.class), any(LambdaQueryWrapper.class)))
+                .thenReturn(emptyPage);
+        when(emptyPage.getRecords()).thenReturn(java.util.List.of());
+        when(emptyPage.getCurrent()).thenReturn(1L);
+        when(emptyPage.getSize()).thenReturn(20L);
+        when(emptyPage.getTotal()).thenReturn(0L);
+
+        Page<DishVO> result = dishService.listDishes(null, null, 1, 20);
+        assertNotNull(result);
+        verify(dishMapper).selectPage(any(Page.class), any(LambdaQueryWrapper.class));
+    }
 }

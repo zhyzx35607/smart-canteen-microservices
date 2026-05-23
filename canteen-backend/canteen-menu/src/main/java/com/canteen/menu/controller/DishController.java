@@ -19,9 +19,10 @@ public class DishController {
     @GetMapping
     public Result<Page<DishVO>> listDishes(
             @RequestParam(required = false) Long merchantId,
+            @RequestParam(required = false) Integer onShelf,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return Result.success(dishService.listDishes(merchantId, page, size));
+        return Result.success(dishService.listDishes(merchantId, onShelf, page, size));
     }
 
     @GetMapping("/{id}")

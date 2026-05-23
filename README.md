@@ -21,6 +21,7 @@
 - [K3S 集群部署](#k3s-集群部署)
 - [API 速查](#api-速查)
 - [测试](#测试)
+- [从零开始完整部署与测试](#从零开始完整部署与测试)
 - [安全配置](#安全配置)
 - [文档索引](#文档索引)
 - [License](#license)
@@ -97,7 +98,6 @@
 ```
 .
 ├── README.md                          # 本文件
-├── CLAUDE.md                          # Claude Code 上下文索引
 ├── 开发计划.md
 ├── docs/                              # 软件工程文档
 │   ├── 架构设计文档.md
@@ -409,14 +409,253 @@ bash scripts/e2e.sh http://<NODE_IP>:30080
 
 ## 测试
 
+### 测试概览
+
 | 类型 | 范围 | 命令 |
 |------|------|------|
-| 单元测试 | 14 个测试类、48 个用例，覆盖 Service / Controller / Filter | `mvn test` |
+| 全部单元测试 | 15 个测试类、55 个用例，覆盖所有 Service / Controller / Filter / 状态机 / 消息监听器 | `mvn test` |
+| 全部集成测试 | 3 个测试类、18 个用例（订单服务H2、取餐队列Testcontainers Redis、菜品库存Testcontainers Redis+H2） | `mvn test -Dtest="*IntegrationTest"` |
 | 单模块测试 | 单个微服务 | `mvn test -pl canteen-order` |
-| 单类 / 单方法 | 精确定位 | `mvn test -pl canteen-order -Dtest=OrderStateMachineTest[#methodName]` |
+| 单类 | 精确定位 | `mvn test -pl canteen-order -Dtest=OrderStateMachineTest` |
+| 单方法 | 精确定位 | `mvn test -pl canteen-order -Dtest=OrderStateMachineTest#testNormalFlow` |
 | 端到端冒烟 | 需先启动所有服务 | `bash canteen-backend/scripts/e2e.sh http://localhost:8080` |
 
+### 测试文件明细
+
+| 模块 | 测试类 | 用例数 | 类型 | 覆盖内容 |
+|------|--------|--------|------|----------|
+| common | JwtTokenProviderTest | 4 | 单元 | Token生成/验证/过期 |
+| gateway | JwtAuthGlobalFilterTest | 3 | 单元 | 白名单/缺Token/无效Token |
+| gateway | RateLimitFilterTest | 2 | 单元 | IP计数限流/登录IP限流 |
+| user | AuthServiceTest | 6 | 单元 | 注册/登录/登出/刷新 |
+| user | UserControllersTest | 3 | 单元 | 控制器接口 |
+| menu | DishServiceTest | 6 | 单元 | 菜品CRUD/上下架/onShelf过滤 |
+| menu | StockServiceTest | 6 | 单元 | 库存扣减/回滚/无效数值容错 |
+| menu | DishControllerTest | 2 | 单元 | 控制器接口 |
+| menu | MenuServiceIntegrationTest | 8 | 集成 | 库存扣减/不足/回滚/批量原子/低库存预警 |
+| order | OrderStateMachineTest | 8 | 单元 | 状态机全部路径覆盖 |
+| order | OrderTimeoutListenerTest | 3 | 单元 | RocketMQ超时消费/无效ID/异常容错 |
+| order | OrderControllerTest | 5 | 单元 | 下单/接单/取消/查询 |
+| order | OrderServiceIntegrationTest | 6 | 集成 | 下单/状态流转/取消/幂等/非法操作/详情 |
+| pickup | PickupQueueServiceTest | 5 | 单元 | 入队/叫号/核销/异常 |
+| pickup | PickupControllerTest | 2 | 单元 | 大屏/叫号接口 |
+| pickup | PickupQueueServiceIntegrationTest | 4 | 集成 | 入队→叫号→核销/空队/无效码/多窗口 |
+
+**注意：测试不需要外部基础设施。** 单元测试全部使用 Mockito mock，集成测试使用 H2 内存数据库 + Testcontainers Redis 容器，可直接在 IDE 或命令行运行。
+
 测试结果详见 [`docs/测试报告.md`](docs/测试报告.md)。
+
+---
+
+## 从零开始完整部署与测试
+
+以下是从空白环境到系统完全运行的详细步骤，适合首次接触项目的开发者。
+
+### 环境要求检查
+
+```bash
+# 1. 检查 Java 版本（必须 17+）
+java -version
+# 期望输出：openjdk version "17.x" 或 "21.x"
+
+# 2. 检查 Maven（3.8+）
+mvn -version
+
+# 3. 检查 Docker（基础设施依赖）
+docker info
+docker compose version
+
+# 4. 检查端口占用（以下端口必须空闲）
+# 8848(Nacos)  3306(MySQL)  6379(Redis)  9876(RocketMQ)
+# 8080(Gateway) 8081(User)  8082(Menu)  8083(Order)  8084(Pickup)
+```
+
+### 第一阶段：启动基础设施
+
+```bash
+cd canteen-backend
+
+# 启动 Nacos + MySQL + Redis + RocketMQ
+docker compose -f scripts/docker-compose.yaml up -d
+
+# 等待所有容器就绪（约 30-60 秒）
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+# 逐个验证基础设施
+# Nacos（账号密码均为 nacos）
+curl -s http://localhost:8848/nacos/v1/console/health/readiness
+# MySQL（root/root123）
+docker exec canteen-mysql mysql -uroot -proot123 -e "SHOW DATABASES;"
+# Redis
+docker exec canteen-redis redis-cli PING
+# RocketMQ NameServer
+curl -s http://localhost:9876/
+```
+
+### 第二阶段：配置 Nacos
+
+1. 浏览器打开 http://localhost:8848/nacos ，登录（`nacos` / `nacos`）
+2. 左侧菜单 → **配置管理** → **配置列表** → 点击 **＋** 新建配置
+3. 填写以下内容：
+
+| 字段 | 值 |
+|------|-----|
+| Data ID | `common.yaml` |
+| Group | `DEFAULT_GROUP` |
+| 配置格式 | `YAML` |
+| 配置内容 | 见下方 |
+
+```yaml
+jwt:
+  secret: ${JWT_SECRET:dev-only-jwt-secret-please-override-in-nacos-or-env-256bits}
+  access-token-expiration: 900000
+  refresh-token-expiration: 604800000
+
+internal:
+  token: ${INTERNAL_TOKEN:dev-only-internal-token-please-override}
+```
+
+4. 点击 **发布**
+
+> 也可以跳过此步骤，各服务的 `application.yaml` 已内置上述默认值。Nacos 共享配置主要用于 K3S 生产部署时统一管理。
+
+### 第三阶段：编译项目
+
+```bash
+cd canteen-backend
+
+# 编译全部模块（跳过测试，加快速度）
+mvn clean package -DskipTests
+
+# 验证编译产物
+ls -lh canteen-*/target/*.jar
+```
+
+### 第四阶段：启动微服务
+
+**严格按以下顺序启动：先业务服务，最后网关。**
+
+```bash
+# === 终端 1：用户服务 (8081) ===
+java -jar canteen-user/target/canteen-user-1.0.0.jar
+
+# === 终端 2：菜单服务 (8082) ===
+java -jar canteen-menu/target/canteen-menu-1.0.0.jar
+
+# === 终端 3：订单服务 (8083) ===
+java -jar canteen-order/target/canteen-order-1.0.0.jar
+
+# === 终端 4：取餐服务 (8084) ===
+java -jar canteen-pickup/target/canteen-pickup-1.0.0.jar
+
+# === 终端 5：网关服务 (8080) — 最后启动 ===
+java -jar canteen-gateway/target/canteen-gateway-1.0.0.jar
+```
+
+**等待所有服务注册到 Nacos：**
+
+浏览器打开 http://localhost:8848/nacos → **服务管理** → **服务列表**，确认 5 个服务全部在线：
+
+| 服务名 | 实例数 | 端口 |
+|--------|--------|------|
+| user-service | 1 | 8081 |
+| menu-service | 1 | 8082 |
+| order-service | 1 | 8083 |
+| pickup-service | 1 | 8084 |
+| gateway-service | 1 | 8080 |
+
+### 第五阶段：执行完整测试
+
+#### 5.1 运行全部单元测试 + 集成测试
+
+```bash
+cd canteen-backend
+
+# 全部测试（单元 + 集成）
+mvn test
+
+# 预期输出：Tests run: 73, Failures: 0, Errors: 0, Skipped: 0
+```
+
+#### 5.2 逐模块运行测试
+
+```bash
+# 用户服务（注册/登录/Token 刷新/登出）
+mvn test -pl canteen-user
+# 预期：Tests run: 9
+
+# 菜单服务（菜品CRUD/库存扣减/回滚/上下架/onShelf过滤）
+mvn test -pl canteen-menu
+# 预期：Tests run: 22（含 8 个集成测试）
+
+# 订单服务（状态机/下单/接单/取消/幂等/RocketMQ监听器）
+mvn test -pl canteen-order
+# 预期：Tests run: 22（含 6 个集成测试）
+
+# 取餐服务（入队/叫号/核销/WebSocket广播）
+mvn test -pl canteen-pickup
+# 预期：Tests run: 11（含 4 个集成测试）
+
+# 网关（JWT校验/限流）
+mvn test -pl canteen-gateway
+# 预期：Tests run: 5
+```
+
+#### 5.3 运行端到端冒烟测试
+
+```bash
+# 确保所有服务已启动，然后执行
+bash canteen-backend/scripts/e2e.sh http://localhost:8080
+
+# 成功输出示例：
+# [PASS] 注册
+# [PASS] 登录
+# [PASS] 查询菜品
+# [PASS] 下单
+# [PASS] 查询订单
+# ...
+```
+
+#### 5.4 手动 API 验证
+
+使用 curl 验证核心流程：
+
+```bash
+# 1. 注册
+curl -s -X POST http://localhost:8080/api/user/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"13900001111","studentNo":"2024999","password":"test123456","nickname":"测试用户"}'
+
+# 2. 登录（保存返回的 accessToken）
+TOKEN=$(curl -s -X POST http://localhost:8080/api/user/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"phone":"13900001111","loginType":"password","password":"test123456"}' \
+  | jq -r '.data.accessToken')
+
+# 3. 查询菜品
+curl -s http://localhost:8080/api/menu/dishes?onShelf=1 \
+  -H "Authorization: Bearer $TOKEN" | jq
+
+# 4. 下单
+curl -s -X POST http://localhost:8080/api/order/orders \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d '{"merchantId":1,"items":[{"dishId":1,"quantity":2}]}' | jq
+```
+
+### 常见问题排查
+
+| 问题 | 原因 | 解决 |
+|------|------|------|
+| `docker compose` 启动失败 | Docker Desktop 未运行 | 启动 Docker Desktop，等待引擎就绪 |
+| 端口冲突 | 端口被其他进程占用 | `netstat -ano \| findstr <端口>` 查找占用进程 |
+| 网关返回 503 | 下游服务未注册到 Nacos | 等待 30 秒，检查 Nacos 服务列表 |
+| `mvn test` 失败 | 依赖未安装 | 先运行 `mvn install -DskipTests` |
+| 集成测试失败 | Docker 未运行（Testcontainers 需要） | 启动 Docker Desktop |
+| WebSocket 连不上 | 直接连了 pickup 端口 | 应通过网关 `ws://localhost:8080/ws/screen/{counterId}` |
+| 编译报 Lombok 错误 | 未启用注解处理器 | IDEA: Settings → Build → Compiler → Annotation Processors → 勾选 Enable |
+| 测试控制台中文乱码 | 终端编码问题 | Windows 终端执行 `chcp 65001` 切换到 UTF-8 |
 
 ---
 

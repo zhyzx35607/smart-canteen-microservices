@@ -78,7 +78,13 @@ public class StockService {
         for (StockDeductRequest.StockItem item : items) {
             String stockStr = stringRedisTemplate.opsForValue().get(STOCK_KEY_PREFIX + item.getDishId());
             if (stockStr != null) {
-                int left = Integer.parseInt(stockStr);
+                int left;
+                try {
+                    left = Integer.parseInt(stockStr);
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid stock value in Redis: dishId={}, value={}", item.getDishId(), stockStr);
+                    continue;
+                }
                 Dish dish = dishMapper.selectById(item.getDishId());
                 int threshold = (dish != null && dish.getThreshold() != null) ? dish.getThreshold() : 5;
                 if (left < threshold) {
@@ -111,6 +117,12 @@ public class StockService {
      */
     public int getStock(Long dishId) {
         String stockStr = stringRedisTemplate.opsForValue().get(STOCK_KEY_PREFIX + dishId);
-        return stockStr != null ? Integer.parseInt(stockStr) : 0;
+        if (stockStr == null) return 0;
+        try {
+            return Integer.parseInt(stockStr);
+        } catch (NumberFormatException e) {
+            log.warn("Invalid stock value in Redis: dishId={}, value={}", dishId, stockStr);
+            return 0;
+        }
     }
 }
