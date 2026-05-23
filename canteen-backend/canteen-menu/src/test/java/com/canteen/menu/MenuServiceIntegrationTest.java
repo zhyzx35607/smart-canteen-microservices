@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
 @ActiveProfiles("test")
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @Sql(scripts = "classpath:schema-menu-test.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
 class MenuServiceIntegrationTest {
 
@@ -45,6 +45,9 @@ class MenuServiceIntegrationTest {
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("spring.cloud.nacos.config.enabled", () -> "false");
         registry.add("spring.cloud.sentinel.enabled", () -> "false");
+        registry.add("spring.cloud.stream.rocketmq.binder.name-server", () -> "localhost:19876");
+        registry.add("spring.autoconfigure.exclude",
+                () -> "org.redisson.spring.starter.RedissonAutoConfigurationV2");
         registry.add("internal.token", () -> "test-internal-token");
     }
 

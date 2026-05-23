@@ -2,6 +2,10 @@ server:
   port: 8080
 
 spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:16379}
   cloud:
     gateway:
       discovery:
@@ -50,6 +54,7 @@ gateway:
       - /api/user/auth/**
       - /ws/screen/**
       - /actuator/**
+      - /api/pickup/queues/**
 
 logging:
   pattern:

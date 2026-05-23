@@ -11,12 +11,16 @@ import com.canteen.order.feign.MenuServiceClient;
 import com.canteen.order.feign.PickupServiceClient;
 import com.canteen.order.mapper.OrderMapper;
 import com.canteen.order.service.OrderService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.cloud.stream.function.StreamBridge;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.jdbc.Sql;
@@ -26,7 +30,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
@@ -41,9 +46,11 @@ import static org.mockito.Mockito.when;
         "spring.cloud.nacos.discovery.enabled=false",
         "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.sentinel.enabled=false",
-        "spring.cloud.stream.rocketmq.binder.name-server=localhost:19876",
-        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration",
-        "spring.autoconfigure.exclude=org.redisson.spring.starter.RedissonAutoConfiguration",
+        "spring.cloud.stream.enabled=false",
+        "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2",
+        "jwt.secret=test-secret-key-must-be-at-least-256-bits-long-for-jjwt-token-provider",
+        "jwt.access-token-expiration=900000",
+        "jwt.refresh-token-expiration=604800000",
         "internal.token=test-internal-token"
 })
 @Sql(scripts = "classpath:schema-order-test.sql", executionPhase = Sql.ExecutionPhase.BEFORE_TEST_CLASS)
@@ -69,6 +76,28 @@ class OrderServiceIntegrationTest {
 
     @MockBean
     private StreamBridge streamBridge;
+
+    @MockBean
+    private StringRedisTemplate stringRedisTemplate;
+
+    @MockBean
+    private ValueOperations<String, String> valueOperations;
+
+    @MockBean
+    private RedissonClient redissonClient;
+
+    @MockBean
+    private org.springframework.data.redis.connection.RedisConnectionFactory redisConnectionFactory;
+
+    @BeforeEach
+    void setUpRedisMock() {
+        lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        // Default: idempotency key set succeeds (return true)
+        lenient().when(valueOperations.setIfAbsent(anyString(), anyString(), anyLong(), any()))
+                .thenReturn(true);
+        // Default: pickup code generation returns 1
+        lenient().when(valueOperations.increment(anyString())).thenReturn(1L);
+    }
 
     private PlaceOrderRequest buildRequest() {
         PlaceOrderRequest req = new PlaceOrderRequest();
@@ -124,6 +153,10 @@ class OrderServiceIntegrationTest {
         when(streamBridge.send(any(), any())).thenReturn(true);
 
         orderService.placeOrder(1L, buildRequest(), "itg-dup-001");
+
+        // Override mock: same idempotency key now returns false (duplicate)
+        when(valueOperations.setIfAbsent(eq("order:idem:itg-dup-001"), anyString(), anyLong(), any()))
+                .thenReturn(false);
 
         assertThrows(com.canteen.common.exception.BusinessException.class, () ->
                 orderService.placeOrder(1L, buildRequest(), "itg-dup-001"));

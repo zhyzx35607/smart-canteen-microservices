@@ -1,0 +1,73 @@
+# ============================================================
+# Nacos 共享配置 - common.yaml
+# Data ID: common.yaml
+# Group: DEFAULT_GROUP
+# ============================================================
+# 此配置通过 bootstrap.yaml 中的 shared-configs 被所有服务共享加载
+# 部署到 Nacos 控制台后，所有微服务将自动读取此配置
+# ============================================================
+
+# ---------- Spring 数据源配置 ----------
+# 端口与 docker-compose.yaml 保持一致：MySQL=13306, Redis=16379
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:13306}/canteen_user?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:YOUR_PROD_MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:16379}
+# 注意：本地开发 Redis 无密码时不要设置 password 字段（Redisson 会把空串当作 AUTH 发送导致报错）。
+# 生产环境需要密码时取消下面一行的注释并设置：
+#      password: ${REDIS_PASSWORD:your_redis_password}
+
+# ---------- MyBatis-Plus 全局配置 ----------
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: deletedAt
+      logic-delete-value: NOW()
+      logic-not-delete-value: "NULL"
+
+# ---------- JWT 安全配置（生产环境必须修改）----------
+jwt:
+  secret: ${JWT_SECRET:YOUR_PROD_JWT_SECRET_MIN_256_BITS}
+  access-token-expiration: 900000        # 15分钟 (毫秒)
+  refresh-token-expiration: 604800000     # 7天 (毫秒)
+
+# ---------- 服务间内部调用认证 ----------
+internal:
+  token: ${INTERNAL_TOKEN:YOUR_PROD_INTERNAL_TOKEN}
+
+# ---------- RocketMQ 配置 ----------
+# 端口与 docker-compose.yaml 保持一致：NameServer=19876
+rocketmq:
+  name-server: ${NAMESRV_ADDR:localhost:19876}
+  producer:
+    group: canteen-producer-group
+    send-message-timeout: 3000
+    retry-times-when-send-failed: 2
+
+# ---------- 日志配置 ----------
+logging:
+  pattern:
+    console: "%d{ISO8601} %-5level [%X{traceId}] %logger - %msg%n"
+  level:
+    root: INFO
+    com.smartcanteen: DEBUG
+
+# ---------- 监控端点 ----------
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}

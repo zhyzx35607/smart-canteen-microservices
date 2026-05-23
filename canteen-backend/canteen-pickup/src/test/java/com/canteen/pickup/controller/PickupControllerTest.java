@@ -5,9 +5,11 @@ import com.canteen.pickup.dto.QueueScreenVO;
 import com.canteen.pickup.service.PickupQueueService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.Mockito.when;
@@ -22,6 +24,13 @@ class PickupControllerTest {
 
     @MockBean
     private PickupQueueService pickupQueueService;
+
+    // Prevent RedissonConfig, RedisConfig from failing context load
+    @MockBean
+    private RedissonClient redissonClient;
+
+    @MockBean
+    private RedisConnectionFactory redisConnectionFactory;
 
     @Test
     @DisplayName("GET /queues/{counterId} - 获取大屏数据")
