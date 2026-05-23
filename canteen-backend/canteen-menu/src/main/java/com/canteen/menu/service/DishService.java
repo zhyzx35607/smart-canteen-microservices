@@ -23,11 +23,14 @@ public class DishService {
     private final DishMapper dishMapper;
     private final MerchantMapper merchantMapper;
 
-    public Page<DishVO> listDishes(Long merchantId, int page, int size) {
+    public Page<DishVO> listDishes(Long merchantId, Integer onShelf, int page, int size) {
         Page<Dish> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<Dish> wrapper = new LambdaQueryWrapper<>();
         if (merchantId != null) {
             wrapper.eq(Dish::getMerchantId, merchantId);
+        }
+        if (onShelf != null) {
+            wrapper.eq(Dish::getOnShelf, onShelf);
         }
         wrapper.orderByDesc(Dish::getCreatedAt);
 

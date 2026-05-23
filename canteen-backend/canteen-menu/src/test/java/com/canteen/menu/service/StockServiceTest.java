@@ -101,4 +101,26 @@ class StockServiceTest {
         verifyNoInteractions(stringRedisTemplate);
         verifyNoInteractions(dailyMenuItemMapper);
     }
+
+    @Test
+    @DisplayName("getStock: Redis 返回非数字 → 返回 0 不抛异常")
+    void testGetStockInvalidNumber() {
+        var valueOps = mock(org.springframework.data.redis.core.ValueOperations.class);
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("stock:1")).thenReturn("INVALID_NAN");
+
+        int stock = stockService.getStock(1L);
+        assertEquals(0, stock);
+    }
+
+    @Test
+    @DisplayName("getStock: 不存在 key → 返回 0")
+    void testGetStockNull() {
+        var valueOps = mock(org.springframework.data.redis.core.ValueOperations.class);
+        when(stringRedisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("stock:999")).thenReturn(null);
+
+        int stock = stockService.getStock(999L);
+        assertEquals(0, stock);
+    }
 }
