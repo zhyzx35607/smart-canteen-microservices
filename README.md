@@ -106,6 +106,14 @@
 │   ├── 详细设计说明书.md
 │   ├── 测试用例.md
 │   └── 测试报告.md
+├── frontend/                          # 前端（三端独立 H5）
+│   ├── index.html                     # 入口导航页
+│   ├── user.html                      # 用户端：点餐+订单+个人中心
+│   ├── merchant.html                  # 商家端：订单管理+菜品管理+菜单发布
+│   ├── screen.html                    # 大屏端：取餐队列实时显示
+│   └── common/
+│       ├── style.css                  # 共享样式
+│       └── api.js                     # 共享 JS（API客户端+Token刷新）
 └── canteen-backend/
     ├── pom.xml                        # 父 POM（依赖与版本管理）
     ├── canteen-common/                # 公共模块：Result、JWT、TraceId、InternalToken、RedissonConfig
@@ -124,6 +132,22 @@
         ├── broker.conf                # RocketMQ Broker 配置
         └── e2e.sh                     # 端到端冒烟测试脚本
 ```
+
+---
+
+## 前端
+
+系统提供三个独立的前端页面，按角色分离：
+
+| 页面 | 说明 | 功能 | 需登录 |
+|------|------|------|--------|
+| `user.html` | 🍜 用户端 | 今日菜单+购物车下单、我的订单（筛选/取消/核销）、个人中心 | ✅ |
+| `merchant.html` | 👨‍🍳 商家端 | 订单管理（接单/制作/叫号）、菜品CRUD+上下架、每日菜单发布、个人中心 | ✅ |
+| `screen.html` | 📺 大屏端 | 暗色全屏取餐队列实时显示、STOMP WebSocket 实时推送+3秒轮询兜底 | ❌ |
+
+打开方式：直接在浏览器中打开对应 HTML 文件，或通过 `frontend/index.html` 入口页面导航。
+
+> 前端采用纯静态 HTML/CSS/JS 实现，无需 Node.js 或构建工具。共享的 API 客户端和样式位于 `common/` 目录。
 
 ---
 

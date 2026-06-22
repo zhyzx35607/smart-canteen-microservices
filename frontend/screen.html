@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>食堂取餐大屏 - 智慧食堂</title>
+<link rel="stylesheet" href="common/style.css">
+<style>
+/* 大屏专属样式 */
+body{background:#1a1a2e;color:#eee}
+.hd{background:linear-gradient(135deg,#0f0f23,#1a1a2e 40%,#c0392b);border-bottom:2px solid #e74c3c}
+.sc .call-num{font-size:8em;color:#f39c12;text-shadow:0 0 40px rgba(243,156,18,.5)}
+.sc .call-num.idle{color:#555;font-size:3em;text-shadow:none}
+.wq{grid-template-columns:1fr 1fr}
+@media(min-width:1200px){.wq{grid-template-columns:1fr 1fr 1fr}}
+.wqc{background:#16213e;border:1px solid #0f3460;color:#eee;min-height:300px}
+.wqc h3{color:#f39c12}
+.qi{background:#0f3460;border-color:#1a1a4e;color:#eee}
+.qi:hover{background:#1a1a4e}
+.qc{color:#f39c12}
+.qo{color:#aaa}
+.winfo{font-size:1em;margin:10px 0}
+.cc-select{display:flex;justify-content:center;gap:12px;margin-bottom:20px}
+.cc-select button{
+  padding:10px 28px;border:2px solid #555;border-radius:24px;
+  background:transparent;color:#aaa;cursor:pointer;font-size:.95em;
+  font-weight:600;transition:.2s;
+}
+.cc-select button:hover{border-color:#f39c12;color:#f39c12}
+.cc-select button.ac{background:#e74c3c;color:#fff;border-color:#e74c3c}
+.hl-section{margin-top:24px}
+.hl-section h4{color:#f39c12;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="lo"><span class="ic">📺</span><div><h1>食堂取餐大屏</h1><span>实时叫号 · 排队取餐</span></div></div>
+  <div class="ur"><span id="clock" style="font-size:1.2em;font-weight:700"></span></div>
+</div>
+
+<div class="ct">
+  <div class="cd sc" style="background:#16213e;border:1px solid #0f3460;border-radius:var(--r);padding:32px">
+    <h2 style="color:#f39c12;justify-content:center;font-size:1.2em">📢 当前叫号</h2>
+
+    <!-- 窗口选择 -->
+    <div class="cc-select">
+      <button class="ac" id="scb-C01" onclick="selectCounter('C01')">🪟 川味窗口 C01</button>
+      <button id="scb-C02" onclick="selectCounter('C02')">🍲 粤式窗口 C02</button>
+      <button id="scb-C03" onclick="selectCounter('C03')">🍜 面食窗口 C03</button>
+    </div>
+
+    <div class="winfo" id="wsi">⚪ 正在连接...</div>
+    <div class="call-num idle" id="cco">---</div>
+    <div class="call-info" id="cin" style="color:#aaa">等待叫号中...</div>
+
+    <div class="wq">
+      <div class="wqc"><h3>⏳ 等待队列 <span id="wc">(0)</span></h3><div id="wl"></div></div>
+      <div class="wqc"><h3>✅ 叫号历史</h3><div id="hl"></div></div>
+    </div>
+  </div>
+</div>
+
+<script src="sockjs.min.js"></script>
+<script src="stomp.umd.min.js"></script>
+<script>
+"use strict";
+
+var API_BASE = "http://localhost:8080";
+var SC = "C01";
+var ST = null;
+var ST_SUBS = {};
+var SCREEN_POLL = null;
+
+// ===== 时钟 =====
+function updateClock() {
+  var now = new Date();
+  document.getElementById("clock").textContent =
+    now.toLocaleTimeString("zh-CN", { hour12: false }) +
+    "  " + now.toLocaleDateString("zh-CN");
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ===== 窗口切换 =====
+function selectCounter(id) {
+  var oldSC = SC;
+  SC = id;
+  document.querySelectorAll("[id^=scb-]").forEach(function (b) {
+    b.classList.toggle("ac", b.id === "scb-" + id);
+  });
+
+  // 切换 WebSocket 订阅
+  if (ST && ST.connected) {
+    if (oldSC && ST_SUBS[oldSC]) {
+      try { ST_SUBS[oldSC].unsubscribe(); } catch (e) {}
+      delete ST_SUBS[oldSC];
+    }
+    ST_SUBS[id] = ST.subscribe("/topic/screen/" + id, function () { refreshScreen(); });
+  }
+  refreshScreen();
+}
+
+// ===== 获取队列数据 =====
+async function refreshScreen() {
+  try {
+    var r = await fetch(API_BASE + "/api/pickup/queues/" + SC);
+    var d = await r.json();
+    if (d.code === 0) renderScreen(d.data);
+  } catch (e) { /* silent */ }
+}
+
+function renderScreen(d) {
+  if (!d) return;
+  var ce = document.getElementById("cco");
+  var ie = document.getElementById("cin");
+
+  if (d.currentCalling) {
+    ce.textContent = d.currentCalling.pickupCode || "---";
+    ce.classList.remove("idle");
+    ie.textContent = "订单 #" + d.currentCalling.orderId + " · 请到窗口取餐";
+    ie.style.color = "#f39c12";
+  } else {
+    ce.textContent = "---";
+    ce.classList.add("idle");
+    ie.textContent = "等待叫号中...";
+    ie.style.color = "#aaa";
+  }
+
+  var wl = d.waitingList || [];
+  document.getElementById("wc").textContent = "(" + wl.length + ")";
+  document.getElementById("wl").innerHTML = wl.length > 0
+    ? wl.map(function (e) {
+        return '<div class="qi"><span class="qc">' + e.pickupCode + '</span><span class="qo">订单 #' + e.orderId + '</span></div>';
+      }).join("")
+    : '<div class="qi"><span style="color:#666">暂无等待</span></div>';
+
+  var hl = d.historyList || [];
+  document.getElementById("hl").innerHTML = hl.length > 0
+    ? hl.slice().reverse().map(function (e) {
+        return '<div class="qi"><span class="qc">' + e.pickupCode + '</span><span class="qo">订单 #' + e.orderId + '</span></div>';
+      }).join("")
+    : '<div class="qi"><span style="color:#666">暂无记录</span></div>';
+}
+
+// ===== 轮询（WebSocket 断线兜底） =====
+function startScreenPoll() {
+  stopScreenPoll();
+  refreshScreen();
+  SCREEN_POLL = setInterval(refreshScreen, 3000);
+}
+function stopScreenPoll() {
+  if (SCREEN_POLL) { clearInterval(SCREEN_POLL); SCREEN_POLL = null; }
+}
+
+// ===== WebSocket =====
+function connectWS() {
+  if (ST) {
+    try { ST.deactivate(); } catch (e) {}
+    ST_SUBS = {}; ST = null;
+  }
+  try {
+    var sk = new SockJS(API_BASE + "/ws/screen");
+    ST = StompJs.Stomp.over(sk);
+    ST.debug = null;
+    ST.connect({}, function () {
+      document.getElementById("wsi").innerHTML = "🟢 WebSocket 已连接 · 实时推送中";
+      document.getElementById("wsi").className = "winfo wok";
+      ST_SUBS[SC] = ST.subscribe("/topic/screen/" + SC, function () { refreshScreen(); });
+      refreshScreen();
+    }, function () {
+      document.getElementById("wsi").innerHTML = "🔴 连接断开 · 3秒后重试...";
+      document.getElementById("wsi").className = "winfo wer";
+      ST_SUBS = {};
+      setTimeout(connectWS, 3000);
+    });
+  } catch (e) {
+    document.getElementById("wsi").innerHTML = "🔴 WebSocket 连接失败：" + e.message;
+    document.getElementById("wsi").className = "winfo wer";
+  }
+}
+
+// ===== 启动 =====
+startScreenPoll();
+connectWS();
+</script>
+</body>
+</html>

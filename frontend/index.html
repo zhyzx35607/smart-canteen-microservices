@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智慧食堂 - 点餐与取餐系统</title>
+<link rel="stylesheet" href="common/style.css">
+<style>
+.hd{justify-content:center}
+.hd .lo{flex-direction:column;text-align:center}
+.hd .lo h1{font-size:1.5em}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="lo">
+    <span class="ic" style="font-size:2.2em">🍽️</span>
+    <h1>智慧食堂</h1>
+    <span>点餐与取餐微服务系统</span>
+  </div>
+</div>
+
+<div class="landing">
+  <p class="sub">请选择您的入口</p>
+  <div class="cards">
+    <a href="user.html" class="card user">
+      <span class="ic">🍜</span>
+      <h3>用户端</h3>
+      <p>浏览今日菜单、在线点餐、查看订单状态、取餐核销</p>
+    </a>
+    <a href="merchant.html" class="card merchant">
+      <span class="ic">👨‍🍳</span>
+      <h3>商家端</h3>
+      <p>管理订单（接单/制作/叫号）、菜品上下架、每日菜单发布</p>
+    </a>
+    <a href="screen.html" class="card screen">
+      <span class="ic">📺</span>
+      <h3>食堂大屏</h3>
+      <p>取餐队列实时展示、叫号广播、排队状态一目了然</p>
+    </a>
+  </div>
+  <div id="login-hint" style="margin-top:32px;color:var(--tl);font-size:.9em"></div>
+</div>
+
+<script src="common/api.js"></script>
+<script>
+"use strict";
+
+// 检查登录状态，显示欢迎信息
+(function () {
+  var hint = document.getElementById("login-hint");
+  if (ACCESS_TOKEN) {
+    // 尝试获取用户信息
+    api("/api/user/users/me").then(function (d) {
+      if (d.code === 0 && d.data) {
+        CURRENT_USER = d.data;
+        hint.innerHTML = '👋 欢迎回来，<strong>' + (d.data.nickname || d.data.phone) + '</strong>！';
+      } else {
+        forceLogout();
+      }
+    }).catch(function () {
+      hint.textContent = "后端服务未连接，请先启动服务";
+    });
+  } else {
+    hint.textContent = "请在用户端或商家端登录后使用";
+  }
+})();
+</script>
+</body>
+</html>
