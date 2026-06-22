@@ -27,7 +27,7 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
     private final JwtTokenProvider jwtTokenProvider;
     private final StringRedisTemplate stringRedisTemplate;
 
-    @Value("${gateway.auth.whitelist:/api/user/auth/**,/ws/screen/**,/actuator/**,/api/pickup/queues/**}")
+    @Value("${gateway.auth.whitelist:/api/menu/**,/api/user/auth/**,/ws/screen/**,/actuator/**,/api/pickup/queues/**}")
     private List<String> whitelist;
 
     private static final String BLACKLIST_PREFIX = "jwt:bl:";

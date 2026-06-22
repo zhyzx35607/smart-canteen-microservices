@@ -38,14 +38,14 @@ public class AuthService {
 
     @Transactional
     public TokenResponse register(RegisterRequest req) {
-        // 检查手机号唯一性
+        // 检查手机号唯一�?
         Long phoneCount = userMapper.selectCount(
                 new LambdaQueryWrapper<User>().eq(User::getPhone, req.getPhone()));
         if (phoneCount > 0) {
             throw new BusinessException(ResultCode.USER_PHONE_EXISTS);
         }
 
-        // 检查学工号唯一性
+        // 检查学工号唯一�?
         if (StrUtil.isNotBlank(req.getStudentNo())) {
             Long studentNoCount = userMapper.selectCount(
                     new LambdaQueryWrapper<User>().eq(User::getStudentNo, req.getStudentNo()));
@@ -60,6 +60,7 @@ public class AuthService {
         user.setPasswordHash(PASSWORD_ENCODER.encode(req.getPassword()));
         user.setNickname(StrUtil.blankToDefault(req.getNickname(), "用户" + req.getPhone().substring(7)));
         user.setStatus(1);
+        user.setRole("user");
         userMapper.insert(user);
 
         log.info("User registered: id={}, phone={}", user.getId(), user.getPhone());
@@ -107,7 +108,7 @@ public class AuthService {
 
         Long userId = Long.valueOf(claims.getSubject());
 
-        // 检查 refresh_token 表中是否存在
+        // 检�?refresh_token 表中是否存在
         Long count = refreshTokenMapper.selectCount(
                 new LambdaQueryWrapper<RefreshToken>()
                         .eq(RefreshToken::getUserId, userId)
@@ -121,7 +122,7 @@ public class AuthService {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
 
-        // 删除旧 refresh_token，颁发新的
+        // 删除�?refresh_token，颁发新�?
         refreshTokenMapper.delete(
                 new LambdaQueryWrapper<RefreshToken>()
                         .eq(RefreshToken::getUserId, userId)
@@ -139,14 +140,14 @@ public class AuthService {
                 stringRedisTemplate.opsForValue().set(BLACKLIST_PREFIX + jti, "1", ttl, TimeUnit.MILLISECONDS);
             }
         }
-        // 删除所有 refresh_token
+        // 删除所�?refresh_token
         refreshTokenMapper.delete(
                 new LambdaQueryWrapper<RefreshToken>().eq(RefreshToken::getUserId, userId));
         log.info("User logged out: id={}", userId);
     }
 
     private TokenResponse generateTokenPair(User user) {
-        String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), "user");
+        String accessToken = jwtTokenProvider.generateAccessToken(user.getId(), user.getRole() != null ? user.getRole() : "user");
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
 
         // 保存 refresh_token

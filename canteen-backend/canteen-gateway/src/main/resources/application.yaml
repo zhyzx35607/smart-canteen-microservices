@@ -1,11 +1,8 @@
-server:
+﻿server:
   port: 8080
 
+
 spring:
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:16379}
   cloud:
     gateway:
       discovery:
@@ -41,16 +38,24 @@ spring:
           uri: lb:ws://pickup-service
           predicates:
             - Path=/ws/screen/**
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
 
 jwt:
   secret: ${JWT_SECRET:dev-only-jwt-secret-please-override-in-nacos-or-env-256bits}
   access-token-expiration: 900000
   refresh-token-expiration: 604800000
 
-# Whitelist paths that skip JWT validation
 gateway:
   auth:
     whitelist:
+      - /api/menu/**
+      - /api/order/orders
       - /api/user/auth/**
       - /ws/screen/**
       - /actuator/**

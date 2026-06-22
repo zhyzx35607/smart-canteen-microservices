@@ -20,6 +20,8 @@ public class User {
 
     private String nickname;
 
+    private String role;
+
     private String avatar;
 
     private Integer status;

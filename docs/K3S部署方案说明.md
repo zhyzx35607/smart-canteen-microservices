@@ -1,10 +1,11 @@
-# K3S 部署方案说明
+﻿# K3S 部署方案说明
 
 | 项目 | 内容 |
 | --- | --- |
 | 项目名称 | 智能食堂点餐与取餐微服务系统 |
 | 文档版本 | v1.0 |
 | 编写日期 | 2026-05-21 |
+| 编写人 | 高祥雨 |
 
 ---
 
@@ -16,20 +17,29 @@
 
 ## 2 集群拓扑
 
-```
-┌────────────────────────────────────────────────────────┐
-│  k3s-master (control-plane, 4C/8G)                     │
-│    systemd: k3s.service                                │
-│    组件: api-server / scheduler / controller-manager   │
-│         / embedded etcd / Traefik (禁用)               │
-└──────┬─────────────────────────────────────────────────┘
-       │ flannel vxlan
-       ├────────────────────┐
-       ▼                    ▼
-┌────────────────┐  ┌────────────────┐
-│ k3s-worker-1   │  │ k3s-worker-2   │
-│ (4C/8G)        │  │ (4C/8G)        │
-└────────────────┘  └────────────────┘
+```mermaid
+graph TD
+    subgraph Master["k3s-master (control-plane, 4C/8G)"]
+        direction TB
+        M1["api-server"]
+        M2["scheduler"]
+        M3["controller-manager"]
+        M4["embedded etcd"]
+    end
+    
+    subgraph Worker1["k3s-worker-1 (4C/8G)"]
+        W1["gateway-service :30080"]
+        W2["user-service"]
+        W3["menu-service"]
+    end
+    
+    subgraph Worker2["k3s-worker-2 (4C/8G)"]
+        W4["order-service"]
+        W5["pickup-service (WebSocket)"]
+    end
+    
+    Master -->|"flannel vxlan"| Worker1
+    Master -->|"flannel vxlan"| Worker2
 ```
 
 - 禁用内置 Traefik，统一通过 `gateway-service` 的 NodePort 30080 对外暴露
@@ -153,6 +163,43 @@ kubectl apply -k deploy/apps
 > ```
 > 替换 `deploy/apps/secrets.yaml` 中的占位值后再 `kubectl apply`。
 
+```mermaid
+graph TB
+    subgraph NS_Infra["Namespace: canteen-infra"]
+        MySQL_S["MySQL StatefulSet<br/>PV 持久化<br/>Service :3306"]
+        Redis_S["Redis Deployment<br/>Service :6379"]
+        Nacos_S["Nacos Deployment<br/>Service :8848<br/>NodePort :30848"]
+        RocketMQ_S["RocketMQ<br/>NameServer :9876<br/>Broker :10911"]
+    end
+
+    subgraph NS_Canteen["Namespace: canteen"]
+        GW_S["Gateway Deployment x2<br/>Service :8080<br/>NodePort :30080"]
+        User_S["User Deployment x2<br/>Service :8081"]
+        Menu_S["Menu Deployment x2<br/>Service :8082"]
+        Order_S["Order Deployment x2<br/>Service :8083"]
+        Pickup_S["Pickup Deployment x2<br/>Service :8084<br/>sessionAffinity: ClientIP"]
+    end
+
+    Internet["外部客户端"] -->|"HTTP :30080"| GW_S
+
+    GW_S -->|"路由"| User_S
+    GW_S -->|"路由"| Menu_S
+    GW_S -->|"路由"| Order_S
+    GW_S -->|"路由 + WS代理"| Pickup_S
+
+    User_S --> MySQL_S
+    Menu_S --> MySQL_S
+    Order_S --> MySQL_S
+
+    GW_S & User_S & Menu_S & Order_S & Pickup_S --> Redis_S
+    User_S & Menu_S & Order_S & Pickup_S --> Nacos_S
+    Order_S -.->|"延时消息"| RocketMQ_S
+    Pickup_S -.->|"叫号事件"| RocketMQ_S
+
+    style GW_S fill:#e74c3c,color:#fff
+    style Pickup_S fill:#8e44ad,color:#fff
+```
+
 ---
 
 ## 6 标签与选择器
@@ -191,6 +238,17 @@ selector:
 | redis | 6379 | :6379 | 不暴露 |
 | rocketmq-nameserver | 9876 | :9876 | 不暴露 |
 | rocketmq-broker | 10911 | :10911 | 不暴露 |
+
+
+```mermaid
+flowchart LR
+    A["🌐 外部客户端"] -->|"HTTP :30080"| B["NodePort 30080"]
+    B --> C["gateway-service :8080"]
+    C -->|"/api/user/**"| D["user-service :8081"]
+    C -->|"/api/menu/**"| E["menu-service :8082"]
+    C -->|"/api/order/**"| F["order-service :8083"]
+    C -->|"/api/pickup/**"| G["pickup-service :8084 (WebSocket)"]
+```
 
 ---
 
@@ -252,6 +310,34 @@ livenessProbe:
     port: 8081
   initialDelaySeconds: 40
   periodSeconds: 10
+```
+
+```mermaid
+sequenceDiagram
+    participant K as kubectl
+    participant K3S as K3S API Server
+    participant Infra as canteen-infra Pods
+    participant Apps as canteen Pods
+    participant Nacos as Nacos
+
+    Note over K,Nacos: === 阶段1: 部署基础设施 ===
+    K->>K3S: kubectl apply -k deploy/infra
+    K3S->>Infra: 创建 MySQL + Redis + Nacos + RocketMQ
+    Infra-->>K3S: Pods Running
+    K->>K3S: kubectl -n canteen-infra wait --for=condition=ready pods --all
+
+    Note over K,Nacos: === 阶段2: 上传Nacos配置 ===
+    K->>Nacos: 上传 common.yaml (DEFAULT_GROUP)
+
+    Note over K,Nacos: === 阶段3: 部署业务服务 ===
+    K->>K3S: kubectl apply -k deploy/apps
+    K3S->>Apps: 创建 Gateway + User + Menu + Order + Pickup
+    Apps->>Nacos: 各服务注册 + 拉取配置
+    Apps-->>K3S: Pods Running + Ready
+
+    Note over K,Nacos: === 阶段4: 验证 ===
+    K->>K3S: curl http://node-ip:30080/actuator/health
+    K3S-->>K: 200 OK
 ```
 
 ---

@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商家端 - 智慧食堂</title>
+<link rel="stylesheet" href="common/style.css">
+<style>
+/* 商家端专属 */
+.counter-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.2);padding:6px 14px;border-radius:20px;
+  font-weight:600;font-size:.85em;
+}
+.counter-badge select{
+  background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);
+  color:#fff;padding:4px 8px;border-radius:12px;font-size:.9em;outline:none;
+}
+.counter-badge select option{color:#333}
+</style>
+</head>
+<body>
+
+<!-- ===== 顶部导航 ===== -->
+<div class="hd">
+  <div class="lo"><span class="ic">👨‍🍳</span><div><h1>智慧食堂</h1><span>商家管理</span></div></div>
+  <div class="ur" id="user-bar">
+    <div class="counter-badge">
+      🪟 窗口：
+      <select id="counter-select" onchange="onCounterChange()">
+        <option value="C01">C01 川味窗口</option>
+        <option value="C02">C02 粤式窗口</option>
+        <option value="C03">C03 面食窗口</option>
+      </select>
+    </div>
+    <span class="av">👤</span><span id="uname">未登录</span>
+    <button class="btn-o" id="btn-login-out" onclick="showLogin()">登录</button>
+  </div>
+</div>
+
+<!-- ===== Tab 栏 ===== -->
+<div class="tb">
+  <div class="tbi ac" data-tab="merchant" onclick="switchTab('merchant')">📦 订单管理</div>
+  <div class="tbi" data-tab="dishes-admin" onclick="switchTab('dishes-admin')">🍲 菜品管理</div>
+  <div class="tbi" data-tab="menu-admin" onclick="switchTab('menu-admin')">📋 菜单发布</div>
+  <div class="tbi" data-tab="profile" onclick="switchTab('profile')">👤 个人中心</div>
+</div>
+
+<!-- ===== 内容区 ===== -->
+<div class="ct" id="content">
+
+  <!-- Tab 1: 订单管理 -->
+  <div id="tab-merchant">
+    <div class="cd"><h2>📦 订单管理 —— <span id="current-counter-label">C01 川味窗口</span></h2>
+      <div class="sf" id="msf">
+        <button class="ac" onclick="filterMerchant('PLACED')">已下单</button>
+        <button onclick="filterMerchant('ACCEPTED')">已接单</button>
+        <button onclick="filterMerchant('PREPARING')">制作中</button>
+        <button onclick="filterMerchant('WAITING_PICKUP')">待取餐</button>
+        <button onclick="filterMerchant('PICKED_UP')">已取餐</button>
+        <button onclick="filterMerchant('CANCELED')">已取消</button>
+      </div>
+      <div style="margin-bottom:12px">
+        <button class="bt bt-i bt-sm" onclick="loadMerchantOrders()">🔄 刷新订单</button>
+      </div>
+      <div id="merchant-order-list"></div>
+    </div>
+  </div>
+
+  <!-- Tab 2: 菜品管理 -->
+  <div id="tab-dishes-admin" class="hidden">
+    <div class="cd"><h2>🍲 菜品管理</h2>
+      <div class="help-tip">💡 提示：此处管理菜品基础信息（名称、价格、商户归属）。上下架后需在「菜单发布」中发布每日菜单。</div>
+      <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="bt bt-p bt-sm" onclick="showDishForm()">+ 新增菜品</button>
+        <select id="da-merchant" onchange="loadDishesAdmin()" style="padding:6px 12px;border-radius:20px;border:2px solid var(--b)">
+          <option value="">全部商户</option>
+          <option value="1">川味窗口</option>
+          <option value="2">粤式窗口</option>
+          <option value="3">面食窗口</option>
+        </select>
+        <button class="bt bt-i bt-sm" onclick="loadDishesAdmin()">🔄 刷新</button>
+      </div>
+      <div id="dish-admin-list"></div>
+    </div>
+  </div>
+
+  <!-- Tab 3: 菜单发布 -->
+  <div id="tab-menu-admin" class="hidden">
+    <div class="cd"><h2>📋 每日菜单发布</h2>
+      <div class="help-tip">💡 选择商户和日期，勾选菜品并设置初始库存后点击"发布今日菜单"。已上架的菜品才会出现在下方列表中。</div>
+      <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <select id="ma-merchant" style="padding:8px;border-radius:20px;border:2px solid var(--b)" onchange="onPublishMerchantChange()">
+          <option value="1">川味窗口 (C01)</option>
+          <option value="2">粤式窗口 (C02)</option>
+          <option value="3">面食窗口 (C03)</option>
+        </select>
+        <input type="date" id="ma-date" style="padding:8px;border-radius:20px;border:2px solid var(--b)">
+        <button class="bt bt-p bt-sm" onclick="publishDailyMenu()">📦 发布今日菜单</button>
+      </div>
+      <div style="margin-bottom:10px;font-size:.85em;color:var(--tl)">选择菜品并设置初始库存（留空或设为0表示不加入菜单）：</div>
+      <div id="menu-dish-select"></div>
+    </div>
+  </div>
+
+  <!-- Tab 4: 个人中心 -->
+  <div id="tab-profile" class="hidden">
+    <div class="cd"><h2>👤 个人中心</h2>
+      <div id="profile-content">
+        <div style="text-align:center;padding:20px">
+          <span class="av" style="display:inline-flex;width:64px;height:64px;font-size:2em;margin-bottom:12px">👤</span>
+          <p id="pf-name" style="font-size:1.2em;font-weight:700;margin-bottom:6px"></p>
+          <p id="pf-phone" style="color:var(--tl);margin-bottom:4px"></p>
+          <p id="pf-role" style="color:var(--p);font-weight:600;margin-bottom:16px"></p>
+          <button class="bt bt-p bt-sm" onclick="showProfileEdit()">✏️ 编辑资料</button>
+        </div>
+        <div id="profile-edit-form" class="hidden" style="max-width:400px;margin:0 auto">
+          <div class="fg"><label>昵称</label><input id="pf-nick" placeholder="请输入昵称"></div>
+          <div class="fg"><label>头像 URL</label><input id="pf-avatar" placeholder="请输入头像URL"></div>
+          <div style="display:flex;gap:10px">
+            <button class="bt bt-p bt-bl" onclick="saveProfile()">💾 保存</button>
+            <button class="bt bt-o bt-bl" onclick="hideProfileEdit()">取消</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== 菜品编辑弹窗 ===== -->
+<div id="dish-form-modal" class="hidden">
+  <div class="mo" onclick="if(event.target===this)hideDishForm()">
+    <div class="mi">
+      <h3 style="margin-bottom:16px" id="dish-form-title">新增菜品</h3>
+      <input type="hidden" id="df-id">
+      <div class="fg"><label>菜品名称</label><input id="df-name" placeholder="请输入菜品名称"></div>
+      <div class="fg"><label>价格（分）</label><input id="df-price" type="number" placeholder="例如 1200 = 12.00元"></div>
+      <div class="fg"><label>所属商户</label><select id="df-merchant"><option value="1">川味窗口</option><option value="2">粤式窗口</option><option value="3">面食窗口</option></select></div>
+      <div class="fg"><label>库存预警阈值</label><input id="df-threshold" type="number" value="5" placeholder="默认 5"></div>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="bt bt-p bt-bl" onclick="saveDish()">💾 保存</button>
+        <button class="bt bt-o bt-bl" onclick="hideDishForm()">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 登录弹窗 ===== -->
+<div id="login-modal" class="hidden">
+  <div class="mo" onclick="if(event.target===this)hideLogin()">
+    <div class="mi">
+      <div style="display:flex;margin-bottom:20px">
+        <button class="bt bt-bl" id="ltab-login" style="border-radius:20px 0 0 20px;background:var(--p);color:#fff" onclick="switchLoginTab('login')">登录</button>
+        <button class="bt bt-o bt-bl" id="ltab-register" style="border-radius:0 20px 20px 0" onclick="switchLoginTab('register')">注册</button>
+      </div>
+      <div id="login-form">
+        <div class="fg"><label>手机号</label><input id="l-phone" placeholder="请输入手机号" value="13800000001"></div>
+        <div class="fg"><label>密码</label><input id="l-pass" type="password" placeholder="请输入密码" value="password123"></div>
+        <button class="bt bt-p bt-bl" onclick="doLogin()" style="margin-top:8px">🔐 登录</button>
+      </div>
+      <div id="register-form" class="hidden">
+        <div class="fg"><label>手机号</label><input id="r-phone" placeholder="请输入手机号"></div>
+        <div class="fg"><label>昵称</label><input id="r-nick" placeholder="请输入昵称"></div>
+        <div class="fg"><label>密码</label><input id="r-pass" type="password" placeholder="请输入密码（至少6位）"></div>
+        <button class="bt bt-p bt-bl" onclick="doRegister()" style="margin-top:8px">📝 注册</button>
+      </div>
+      <div style="text-align:center;margin-top:14px"><button class="bt bt-o bt-sm" onclick="hideLogin()">取消</button></div>
+    </div>
+  </div>
+</div>
+
+<script src="common/api.js"></script>
+<script>
+"use strict";
+
+// ===== 页面状态 =====
+var CT = "merchant";
+var MC = localStorage.getItem("_counter") || "C01"; // 当前窗口
+var MF = "PLACED"; // 商家订单筛选
+var DA_DISHES = []; // 菜品管理列表
+var MA_DISHES = []; // 菜单发布菜品列表
+
+// 初始化窗口选择器
+document.getElementById("counter-select").value = MC;
+
+// ===== 窗口切换 =====
+function onCounterChange() {
+  MC = document.getElementById("counter-select").value;
+  localStorage.setItem("_counter", MC);
+  updateCounterLabel();
+  if (CT === "merchant") loadMerchantOrders();
+}
+
+function updateCounterLabel() {
+  var labels = { C01: "C01 川味窗口", C02: "C02 粤式窗口", C03: "C03 面食窗口" };
+  var el = document.getElementById("current-counter-label");
+  if (el) el.textContent = labels[MC] || MC;
+}
+
+// ===== Tab 切换 =====
+function switchTab(t) {
+  CT = t;
+  document.querySelectorAll(".tbi").forEach(function (e) { e.classList.toggle("ac", e.dataset.tab === t); });
+  ["merchant", "dishes-admin", "menu-admin", "profile"].forEach(function (id) {
+    document.getElementById("tab-" + id).classList.toggle("hidden", id !== t);
+  });
+  if (t === "merchant") loadMerchantOrders();
+  if (t === "dishes-admin") loadDishesAdmin();
+  if (t === "menu-admin") loadMenuDishSelect();
+  if (t === "profile") renderProfile();
+}
+
+// ===== 登录成功回调 =====
+function onLoginSuccess() {
+  updateCounterLabel();
+  if (CT === "merchant") loadMerchantOrders();
+  if (CT === "dishes-admin") loadDishesAdmin();
+  if (CT === "menu-admin") loadMenuDishSelect();
+  if (CT === "profile") renderProfile();
+}
+
+// ===== 商家 - 订单管理 =====
+async function loadMerchantOrders() { loadMerchantOrdersByFilter(MF); }
+
+async function loadMerchantOrdersByFilter(s) {
+  if (!CURRENT_USER) {
+    document.getElementById("merchant-order-list").innerHTML = '<div class="em"><div class="ic">📦</div><p>请先登录</p></div>';
+    return;
+  }
+  // 注意：后端暂不支持按 counterId 筛选，这里获取所有订单后客户端过滤
+  var d = await api("/api/order/orders?page=1&size=100");
+  if (d.code !== 0) {
+    document.getElementById("merchant-order-list").innerHTML = '<div class="em"><p>加载失败：' + (d.message || "") + '</p></div>';
+    return;
+  }
+  var os = (d.data.records || []).filter(function (o) { return o.status === s && o.counterId === MC; });
+  renderMerchantOrders(os);
+}
+
+function filterMerchant(s) {
+  MF = s;
+  var ss = ["PLACED", "ACCEPTED", "PREPARING", "WAITING_PICKUP", "PICKED_UP", "CANCELED"];
+  document.querySelectorAll("#msf button").forEach(function (b, i) { b.classList.toggle("ac", ss[i] === s); });
+  loadMerchantOrdersByFilter(s);
+}
+
+function renderOrderItems(o) {
+  if (!o.items || o.items.length === 0) return "";
+  return '<div class="oitems">' + o.items.map(function (it) { return it.dishNameSnapshot + " × " + it.quantity; }).join("、") + '</div>';
+}
+
+function renderMerchantOrders(os) {
+  var div = document.getElementById("merchant-order-list");
+  if (os.length === 0) { div.innerHTML = '<div class="em"><div class="ic">📦</div><p>暂无此类订单</p></div>'; return; }
+  div.innerHTML = os.map(function (o) {
+    var html = '<div class="oc"><div class="oh"><span><span class="oi">#' + o.id + '</span> <span class="os s-' + o.status + '">' + statusLabel(o.status) + '</span></span><span style="font-weight:700;color:var(--p)">¥' + (o.totalCents / 100).toFixed(2) + '</span></div>';
+    html += '<div class="od">用户 #' + (o.userId || "?") + " | 窗口 " + (o.counterId || "—");
+    if (o.pickupCode) html += ' | <span class="pc">' + o.pickupCode + '</span>';
+    html += '</div>';
+    html += renderOrderItems(o);
+    html += '<div class="ab">' + merchantActions(o) + '</div></div>';
+    return html;
+  }).join("");
+}
+
+function merchantActions(o) {
+  var a = "";
+  if (o.status === "PLACED") a = '<button class="bt bt-i bt-sm" onclick="merchantOp(' + o.id + ',\'accept\')">✅ 接单</button>';
+  if (o.status === "ACCEPTED") a = '<button class="bt bt-w bt-sm" onclick="merchantOp(' + o.id + ',\'start\')">⏲ 开始制作</button>';
+  if (o.status === "PREPARING") a = '<button class="bt bt-s bt-sm" onclick="merchantOp(' + o.id + ',\'ready\')">📦 制作完成</button>';
+  if (o.status === "WAITING_PICKUP") a = '<button class="bt bt-w bt-sm" onclick="callPickup(\'' + (o.counterId || MC) + '\')">📢 叫号取餐</button>';
+  return a || '<span style="color:var(--tl);font-size:.85em">无需操作</span>';
+}
+
+async function merchantOp(id, action) {
+  var d = await api("/api/order/orders/" + id + "/" + action, { method: "PUT" });
+  if (d.code !== 0) { toast(d.message, "er"); return; }
+  var msg = statusLabel(d.data.status);
+  if (d.data.pickupCode) msg += "，取餐码：" + d.data.pickupCode;
+  toast(msg, "ok");
+  loadMerchantOrders();
+}
+
+async function callPickup(cid) {
+  var d = await api("/api/pickup/queues/" + cid + "/call", { method: "POST" });
+  if (d.code === 40003) { toast("队列为空！请先将订单制作完成并入队", "er"); return; }
+  if (d.code !== 0) { toast(d.message, "er"); return; }
+  toast("📢 请 " + d.data.pickupCode + " 到窗口 " + cid + " 取餐！", "ok");
+  loadMerchantOrders();
+}
+
+// ===== 菜品管理 =====
+async function loadDishesAdmin() {
+  if (!CURRENT_USER) { toast("请先登录", "er"); showLogin(); return; }
+  var mid = document.getElementById("da-merchant").value;
+  var url = mid ? "/api/menu/dishes?merchantId=" + mid + "&size=50" : "/api/menu/dishes?size=50";
+  var d = await api(url);
+  if (d.code !== 0) { document.getElementById("dish-admin-list").innerHTML = '<div class="em"><p>加载失败：' + (d.message || "") + '</p></div>'; return; }
+  DA_DISHES = (d.data.records || d.data || []);
+  renderDishesAdmin();
+}
+
+function renderDishesAdmin() {
+  var div = document.getElementById("dish-admin-list");
+  if (DA_DISHES.length === 0) { div.innerHTML = '<div class="em"><div class="ic">🍲</div><p>暂无菜品，请先添加</p></div>'; return; }
+  var mnames = { 1: "川味", 2: "粤式", 3: "面食" };
+  div.innerHTML = DA_DISHES.map(function (di) {
+    var on = di.onShelf === 1;
+    return '<div class="oc"><div class="oh"><span><strong>' + di.name + '</strong> <span style="color:var(--tl);font-size:.8em">#' + di.id + '</span> <span style="color:var(--tl);font-size:.75em">| ' + (mnames[di.merchantId] || "商户" + di.merchantId) + '</span></span><span style="color:var(--p);font-weight:700">¥' + (di.priceCents / 100).toFixed(2) + '</span></div><div style="margin-top:6px"><span class="os ' + (on ? "s-WAITING_PICKUP" : "s-CANCELED") + '">' + (on ? "上架中" : "已下架") + '</span> <span style="color:var(--tl);font-size:.8em">库存预警: ' + (di.threshold || 5) + '</span></div><div class="ab"><button class="bt bt-i bt-sm" onclick="editDish(' + di.id + ')">✏️ 编辑</button><button class="bt ' + (on ? "bt-g" : "bt-s") + ' bt-sm" onclick="toggleShelf(' + di.id + ',' + (on ? 0 : 1) + ')">' + (on ? "🔻 下架" : "🔺 上架") + '</button></div></div>';
+  }).join("");
+}
+
+function showDishForm() {
+  document.getElementById("dish-form-title").textContent = "新增菜品";
+  document.getElementById("df-id").value = "";
+  document.getElementById("df-name").value = "";
+  document.getElementById("df-price").value = "";
+  document.getElementById("df-merchant").value = "1";
+  document.getElementById("df-threshold").value = "5";
+  document.getElementById("dish-form-modal").classList.remove("hidden");
+}
+
+function hideDishForm() { document.getElementById("dish-form-modal").classList.add("hidden"); }
+
+function editDish(id) {
+  var di = DA_DISHES.find(function (d) { return d.id === id; });
+  if (!di) { toast("菜品不存在", "er"); return; }
+  document.getElementById("dish-form-title").textContent = "编辑菜品";
+  document.getElementById("df-id").value = di.id;
+  document.getElementById("df-name").value = di.name;
+  document.getElementById("df-price").value = di.priceCents;
+  document.getElementById("df-merchant").value = di.merchantId;
+  document.getElementById("df-threshold").value = di.threshold || 5;
+  document.getElementById("dish-form-modal").classList.remove("hidden");
+}
+
+async function saveDish() {
+  var id = document.getElementById("df-id").value;
+  var body = {
+    merchantId: parseInt(document.getElementById("df-merchant").value),
+    name: document.getElementById("df-name").value.trim(),
+    priceCents: parseInt(document.getElementById("df-price").value),
+    threshold: parseInt(document.getElementById("df-threshold").value) || 5
+  };
+  if (!body.name || !body.priceCents) { toast("请填写菜品名称和价格", "er"); return; }
+  var d;
+  if (id) {
+    d = await api("/api/menu/dishes/" + id, { method: "PUT", body: JSON.stringify(body) });
+  } else {
+    d = await api("/api/menu/dishes", { method: "POST", body: JSON.stringify(body) });
+  }
+  if (d.code !== 0) { toast(d.message, "er"); return; }
+  toast(id ? "菜品已更新" : "菜品已创建", "ok");
+  hideDishForm();
+  loadDishesAdmin();
+}
+
+async function toggleShelf(id, onShelf) {
+  var d = await api("/api/menu/dishes/" + id + "/on-shelf", { method: "PUT" });
+  if (d.code !== 0) { toast(d.message, "er"); return; }
+  toast(onShelf ? "菜品已上架" : "菜品已下架", "ok");
+  loadDishesAdmin();
+}
+
+// ===== 菜单发布 =====
+function onPublishMerchantChange() { loadMenuDishSelect(); }
+
+async function loadMenuDishSelect() {
+  if (!CURRENT_USER) { toast("请先登录", "er"); showLogin(); return; }
+  document.getElementById("ma-date").value = new Date().toISOString().split("T")[0];
+  var d = await api("/api/menu/dishes?onShelf=1&size=100");
+  if (d.code !== 0) { document.getElementById("menu-dish-select").innerHTML = '<div class="em"><p>加载失败：' + (d.message || "") + '</p></div>'; return; }
+  MA_DISHES = (d.data.records || d.data || []);
+  renderMenuDishSelect();
+}
+
+function renderMenuDishSelect() {
+  var mid = parseInt(document.getElementById("ma-merchant").value);
+  var filtered = MA_DISHES.filter(function (di) { return di.merchantId === mid; });
+  var div = document.getElementById("menu-dish-select");
+  if (filtered.length === 0) { div.innerHTML = '<div class="em"><p>该商户暂无上架菜品，请先在菜品管理中添加并上架</p></div>'; return; }
+  div.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead><tr style="text-align:left;border-bottom:2px solid var(--b)"><th style="padding:8px">菜品</th><th style="padding:8px">价格</th><th style="padding:8px">初始库存</th></tr></thead><tbody>' +
+    filtered.map(function (di) {
+      return '<tr style="border-bottom:1px solid var(--b)"><td style="padding:8px"><strong>' + di.name + '</strong></td><td style="padding:8px;color:var(--p);font-weight:600">¥' + (di.priceCents / 100).toFixed(2) + '</td><td style="padding:8px"><input type="number" id="ms-' + di.id + '" value="50" min="0" style="width:80px;padding:6px;border:2px solid var(--b);border-radius:8px"></td></tr>';
+    }).join("") + '</tbody></table>';
+}
+
+async function publishDailyMenu() {
+  var mid = parseInt(document.getElementById("ma-merchant").value);
+  var bizDate = document.getElementById("ma-date").value;
+  var mid_filtered = MA_DISHES.filter(function (di) { return di.merchantId === mid; });
+  var items = [];
+  mid_filtered.forEach(function (di) {
+    var el = document.getElementById("ms-" + di.id);
+    var stock = parseInt(el ? el.value : 0) || 0;
+    if (stock > 0) items.push({ dishId: di.id, stockInit: stock });
+  });
+  if (items.length === 0) { toast("请至少选择一个菜品并设置库存", "er"); return; }
+  var d = await api("/api/menu/daily", {
+    method: "POST", body: JSON.stringify({ merchantId: mid, bizDate: bizDate, sellStart: "06:00", sellEnd: "22:00", items: items })
+  });
+  if (d.code !== 0) { toast(d.message, "er"); return; }
+  toast("菜单发布成功！共 " + items.length + " 个菜品", "ok");
+}
+
+// ===== 个人中心 =====
+function renderProfile() {
+  if (!CURRENT_USER) return;
+  document.getElementById("pf-name").textContent = CURRENT_USER.nickname || CURRENT_USER.phone || "未知";
+  document.getElementById("pf-phone").textContent = CURRENT_USER.phone || "";
+  document.getElementById("pf-role").textContent = "角色：" + roleLabel(CURRENT_USER.role);
+  document.getElementById("pf-nick").value = CURRENT_USER.nickname || "";
+  document.getElementById("pf-avatar").value = CURRENT_USER.avatar || "";
+  hideProfileEdit();
+}
+
+function showProfileEdit() { document.getElementById("profile-edit-form").classList.remove("hidden"); }
+function hideProfileEdit() { document.getElementById("profile-edit-form").classList.add("hidden"); }
+
+async function saveProfile() {
+  var body = {};
+  var nick = document.getElementById("pf-nick").value.trim();
+  var avatar = document.getElementById("pf-avatar").value.trim();
+  if (nick) body.nickname = nick;
+  if (avatar) body.avatar = avatar;
+  var d = await api("/api/user/users/me", { method: "PUT", body: JSON.stringify(body) });
+  if (d.code !== 0) { toast(d.message, "er"); return; }
+  CURRENT_USER = d.data;
+  updateUserBar();
+  renderProfile();
+  toast("资料已更新", "ok");
+}
+
+// ===== 启动 =====
+updateCounterLabel();
+initAuth();
+loadMerchantOrders();
+</script>
+</body>
+</html>
